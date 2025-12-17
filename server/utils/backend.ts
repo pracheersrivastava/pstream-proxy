@@ -4,16 +4,31 @@
  * ARCHITECTURE:
  * - Mobile app → Proxy (this layer) → Internal Backend
  * - Backend MUST remain internal and never be exposed publicly
- * - Only explicitly defined metadata routes are proxied
+ * - Only explicitly defined metadata routes are proxied (no catch-all)
  *
- * MOCK DATA POLICY:
- * - Mock data exists ONLY for local development
+ * MOCK DATA POLICY (CRITICAL):
+ * ============================================================================
+ * WHY MOCKS EXIST:
+ * - Mocks enable local development when backend is unavailable
+ * - Developers can work on UI without a running backend server
+ * - Tests can run without external dependencies
+ *
+ * WHY PRODUCTION MUST FAIL LOUDLY:
+ * - Silent fallbacks to fake data would ship broken features to users
+ * - Real errors must be visible to ops teams immediately
+ * - Users deserve honest error messages, not fake success states
+ * - Shipping mock data to production would be a CRITICAL BUG
+ *
+ * MOCK GATING RULES:
  * - Mocks are DISABLED by default
  * - To enable mocks, BOTH conditions must be true:
  *   1. NODE_ENV !== "production"
- *   2. ENABLE_PROXY_MOCKS=true
- * - In production, backend failures MUST surface as errors
- * - Production MUST NEVER silently succeed with fake data
+ *   2. ENABLE_PROXY_MOCKS=true (explicit opt-in)
+ * - In production:
+ *   - Backend failures MUST surface as 5xx errors
+ *   - NEVER return mock data silently
+ *   - Fail loudly to prevent shipping fake data
+ * ============================================================================
  */
 
 import type { H3Event } from 'h3';

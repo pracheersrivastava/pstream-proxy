@@ -1,12 +1,27 @@
 /**
  * Mock data for development/testing when backend routes aren't available
  * 
- * WARNING:
+ * ============================================================================
+ * CRITICAL WARNING - READ THIS:
+ * ============================================================================
+ * 
+ * WHY THIS EXISTS:
+ * - Enables local UI development without running backend
+ * - Supports testing without external dependencies
+ * - Provides realistic sample data for development
+ * 
+ * GATING RULES:
  * - This mock data is ONLY for local development
  * - Mocks are DISABLED by default
  * - To enable: NODE_ENV !== "production" AND ENABLE_PROXY_MOCKS=true
+ * 
+ * PRODUCTION BEHAVIOR:
  * - Production deployments MUST NEVER use this data
- * - Backend failures in production MUST surface as errors
+ * - Backend failures in production MUST surface as 5xx errors
+ * - Silent fallbacks to mock data would be a CRITICAL BUG
+ * - Users deserve honest errors, not fake success states
+ * 
+ * ============================================================================
  */
 
 export const mockHomeData = [
