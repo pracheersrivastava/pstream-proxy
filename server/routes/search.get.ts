@@ -1,29 +1,31 @@
 /**
- * GET /search - Search metadata passthrough
+ * GET /search - Search metadata aggregation
  *
- * ARCHITECTURE:
- * Flow: App → Proxy (this route) → Internal Backend → Response → App
+ * Proxies search requests to TMDB.
  * Query: ?q=<query>
- * 
- * SECURITY:
- * - Backend remains internal to the proxy layer
- * - Mobile app NEVER calls backend directly
- * 
- * MOCK DATA POLICY:
- * - Mocks exist ONLY for local development
- * - Mocks require BOTH conditions:
- *   1. NODE_ENV !== "production"
- *   2. ENABLE_PROXY_MOCKS=true (explicit opt-in)
- * - Production deployments:
- *   - Backend failures MUST surface as 5xx errors
- *   - NEVER return mock data silently
- *   - Fail loudly to prevent shipping fake data
  */
 
-import { forwardToBackend } from '../utils/backend';
+import { fetchTmdb, mapTmdbToMediaItem } from '../utils/tmdb';
 
 export default defineEventHandler(async (event) => {
-  // Forward to internal backend /search endpoint (preserves query params)
-  // Falls back to mock data only in dev when ENABLE_PROXY_MOCKS=true
-  return forwardToBackend(event, '/search');
+  const query = getQuery(event);
+  const q = String(query.q || '').trim();
+
+  if (!q) {
+    return [];
+  }
+
+  try {
+    const results = await fetchTmdb<{ results: any[] }>('/search/multi', { query: q });
+    
+    return results.results
+      .filter((i: any) => i.media_type === 'movie' || i.media_type === 'tv')
+      .map((i: any) => mapTmdbToMediaItem(i, i.media_type));
+  } catch (error) {
+    console.error('[Search] Error searching TMDB:', error);
+    throw createError({
+      statusCode: 502,
+      message: 'Failed to search',
+    });
+  }
 });

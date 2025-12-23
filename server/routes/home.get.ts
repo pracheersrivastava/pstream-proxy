@@ -1,28 +1,54 @@
 /**
- * GET /home - Home page metadata passthrough
+ * GET /home - Home page metadata aggregation
  *
- * ARCHITECTURE:
- * Flow: App → Proxy (this route) → Internal Backend → Response → App
- * 
- * SECURITY:
- * - Backend remains internal to the proxy layer
- * - Mobile app NEVER calls backend directly
- * 
- * MOCK DATA POLICY:
- * - Mocks exist ONLY for local development
- * - Mocks require BOTH conditions:
- *   1. NODE_ENV !== "production"
- *   2. ENABLE_PROXY_MOCKS=true (explicit opt-in)
- * - Production deployments:
- *   - Backend failures MUST surface as 5xx errors
- *   - NEVER return mock data silently
- *   - Fail loudly to prevent shipping fake data
+ * Aggregates data from TMDB to populate the home screen.
+ * Structure matches what the P-Stream app expects:
+ * [Hero Item, ...Trending, ...Popular, ...New Releases]
  */
 
-import { forwardToBackend } from '../utils/backend';
+import { fetchTmdb, mapTmdbToMediaItem, MediaItem } from '../utils/tmdb';
 
 export default defineEventHandler(async (event) => {
-  // Forward to internal backend /home endpoint
-  // Falls back to mock data only in dev when ENABLE_PROXY_MOCKS=true
-  return forwardToBackend(event, '/home');
+  try {
+    // Fetch data in parallel
+    const [trendingMovies, trendingTv, popularMovies, nowPlaying] = await Promise.all([
+      fetchTmdb<{ results: any[] }>('/trending/movie/week'),
+      fetchTmdb<{ results: any[] }>('/trending/tv/week'),
+      fetchTmdb<{ results: any[] }>('/movie/popular'),
+      fetchTmdb<{ results: any[] }>('/movie/now_playing'),
+    ]);
+
+    // 1. Hero Item (Top Trending Movie)
+    const heroRaw = trendingMovies.results[0];
+    const hero = mapTmdbToMediaItem(heroRaw, 'movie');
+
+    // 2. Trending (Mix of Movies and TV)
+    // Take next 6 movies and top 6 TV shows
+    const trendingItems = [
+      ...trendingMovies.results.slice(1, 7).map((i: any) => mapTmdbToMediaItem(i, 'movie')),
+      ...trendingTv.results.slice(0, 6).map((i: any) => mapTmdbToMediaItem(i, 'tv')),
+    ];
+
+    // 3. Popular Movies
+    const popularItems = popularMovies.results.slice(0, 12).map((i: any) => mapTmdbToMediaItem(i, 'movie'));
+
+    // 4. New Releases (Now Playing)
+    const newReleaseItems = nowPlaying.results.slice(0, 12).map((i: any) => mapTmdbToMediaItem(i, 'movie'));
+
+    // Combine into single array as expected by HomeScreen.tsx
+    const response: MediaItem[] = [
+      hero,
+      ...trendingItems,
+      ...popularItems,
+      ...newReleaseItems,
+    ];
+
+    return response;
+  } catch (error) {
+    console.error('[Home] Error aggregating data:', error);
+    throw createError({
+      statusCode: 502,
+      message: 'Failed to load home data',
+    });
+  }
 });

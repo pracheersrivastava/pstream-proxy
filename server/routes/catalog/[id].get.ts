@@ -1,25 +1,11 @@
 /**
- * GET /catalog/:id - Catalog item details passthrough
+ * GET /catalog/:id - Catalog item details aggregation
  *
- * ARCHITECTURE:
- * Flow: App → Proxy (this route) → Internal Backend → Response → App
- * 
- * SECURITY:
- * - Backend remains internal to the proxy layer
- * - Mobile app NEVER calls backend directly
- * 
- * MOCK DATA POLICY:
- * - Mocks exist ONLY for local development
- * - Mocks require BOTH conditions:
- *   1. NODE_ENV !== "production"
- *   2. ENABLE_PROXY_MOCKS=true (explicit opt-in)
- * - Production deployments:
- *   - Backend failures MUST surface as 5xx errors
- *   - NEVER return mock data silently
- *   - Fail loudly to prevent shipping fake data
+ * Fetches details from TMDB.
+ * Strategy: Try Movie first, then TV.
  */
 
-import { forwardToBackend } from '../../utils/backend';
+import { fetchTmdb, mapTmdbToMediaItem } from '../../utils/tmdb';
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id');
@@ -32,7 +18,28 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Forward to internal backend /catalog/:id endpoint
-  // Falls back to mock data only in dev when ENABLE_PROXY_MOCKS=true
-  return forwardToBackend(event, `/catalog/${id}`);
+  // Try fetching as movie first
+  try {
+    const movie = await fetchTmdb(`/movie/${id}`);
+    return mapTmdbToMediaItem(movie, 'movie');
+  } catch (movieError: any) {
+    // If 404, try TV
+    if (movieError.statusCode === 404) {
+      try {
+        const tv = await fetchTmdb(`/tv/${id}`);
+        return mapTmdbToMediaItem(tv, 'tv');
+      } catch (tvError) {
+        throw createError({
+          statusCode: 404,
+          message: 'Item not found',
+        });
+      }
+    }
+    
+    console.error(`[Catalog] Error fetching details for ${id}:`, movieError);
+    throw createError({
+      statusCode: 502,
+      message: 'Failed to fetch details',
+    });
+  }
 });
