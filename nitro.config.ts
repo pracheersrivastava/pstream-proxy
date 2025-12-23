@@ -1,6 +1,7 @@
 /**
  * Nitro Configuration for P-Stream Proxy
  */
+import process from 'node:process';
 
 export default defineNitroConfig({
   compatibilityDate: '2025-12-17',
@@ -22,6 +23,6 @@ export default defineNitroConfig({
 
   // Dev server
   devServer: {
-    port: 3003,
+    // Port is handled via CLI args in package.json
   },
 });

@@ -30,12 +30,12 @@ export async function fetchTmdb<T = any>(endpoint: string, params: Record<string
   }
 
   try {
-    return await $fetch<T>(`${TMDB_BASE_URL}${endpoint}`, {
+    return (await $fetch<T>(`${TMDB_BASE_URL}${endpoint}`, {
       params: {
         api_key: apiKey,
         ...params,
       },
-    });
+    })) as T;
   } catch (error: any) {
     console.error(`[TMDB] Error fetching ${endpoint}:`, error.message);
     throw createError({

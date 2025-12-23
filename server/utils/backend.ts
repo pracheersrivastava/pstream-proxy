@@ -32,6 +32,7 @@
  */
 
 import type { H3Event } from 'h3';
+import process from 'node:process';
 import { mockHomeData, mockSearchData, mockSourcesData } from './mock';
 
 const HOP_BY_HOP_HEADERS = new Set([
